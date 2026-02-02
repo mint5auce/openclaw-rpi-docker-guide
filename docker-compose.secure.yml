@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "${OPENCLAW_UID}:${OPENCLAW_GID}"
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_API_BASE: ${CLAUDE_API_BASE:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-}
+    volumes:
+      - "${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw"
+      - "${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace"
+    ports:
+      - "127.0.0.1:${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "127.0.0.1:${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    restart: unless-stopped
+    init: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command:
+      - "node"
+      - "dist/index.js"
+      - "gateway"
+      - "--bind"
+      - "${OPENCLAW_GATEWAY_BIND:-lan}"
+      - "--port"
+      - "18789"
+
+  openclaw-cli:
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "${OPENCLAW_UID}:${OPENCLAW_GID}"
+    profiles:
+      - "cli"
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_API_BASE: ${CLAUDE_API_BASE:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-}
+      BROWSER: echo
+    volumes:
+      - "${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw"
+      - "${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace"
+    network_mode: "service:openclaw-gateway"
+    depends_on:
+      - "openclaw-gateway"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    init: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    entrypoint:
+      - "node"
+      - "dist/index.js"

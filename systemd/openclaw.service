@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenClaw Gateway (Docker)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/USERNAME/agents/openclaw
+ExecStart=/usr/bin/docker-compose -f docker-compose.secure.yml up -d openclaw-gateway
+ExecStop=/usr/bin/docker-compose -f docker-compose.secure.yml stop openclaw-gateway
+
+[Install]
+WantedBy=multi-user.target

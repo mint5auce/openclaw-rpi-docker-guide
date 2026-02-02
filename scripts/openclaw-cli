@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+
+ENVFILE="${ENVFILE:-$HOME/agents/openclaw/.env}"
+
+if [ ! -f "$ENVFILE" ]; then
+  echo "ENV file not found: $ENVFILE" >&2
+  exit 1
+fi
+
+OPENCLAW_IMAGE="$(grep '^OPENCLAW_IMAGE=' "$ENVFILE" | cut -d= -f2- || true)"
+OPENCLAW_CONFIG_DIR="$(grep '^OPENCLAW_CONFIG_DIR=' "$ENVFILE" | cut -d= -f2- || true)"
+OPENCLAW_WORKSPACE_DIR="$(grep '^OPENCLAW_WORKSPACE_DIR=' "$ENVFILE" | cut -d= -f2- || true)"
+OPENCLAW_GATEWAY_TOKEN="$(grep '^OPENCLAW_GATEWAY_TOKEN=' "$ENVFILE" | cut -d= -f2- || true)"
+
+if [ -z "$OPENCLAW_IMAGE" ]; then
+  OPENCLAW_IMAGE="openclaw:local"
+fi
+
+if [ -z "$OPENCLAW_CONFIG_DIR" ]; then
+  OPENCLAW_CONFIG_DIR="$HOME/agents/openclaw-data/config"
+fi
+
+if [ -z "$OPENCLAW_WORKSPACE_DIR" ]; then
+  OPENCLAW_WORKSPACE_DIR="$HOME/agents/openclaw-data/workspace"
+fi
+
+if [ -z "$OPENCLAW_GATEWAY_TOKEN" ]; then
+  echo "OPENCLAW_GATEWAY_TOKEN is missing in $ENVFILE" >&2
+  exit 1
+fi
+
+GW_CID="$(docker ps --filter 'label=com.docker.compose.service=openclaw-gateway' --format '{{.ID}}' | head -n 1)"
+
+if [ -z "$GW_CID" ]; then
+  GW_CID="$(docker ps --format '{{.ID}} {{.Names}}' | awk '/openclaw/ && /gateway/ {print $1; exit}')"
+fi
+
+if [ -z "$GW_CID" ]; then
+  echo "openclaw-gateway container is not running" >&2
+  exit 1
+fi
+
+exec docker run --rm -it \
+  --network "container:$GW_CID" \
+  -e HOME=/home/node \
+  -e TERM=xterm-256color \
+  -e OPENCLAW_GATEWAY_TOKEN="$OPENCLAW_GATEWAY_TOKEN" \
+  -v "$OPENCLAW_CONFIG_DIR:/home/node/.openclaw" \
+  -v "$OPENCLAW_WORKSPACE_DIR:/home/node/.openclaw/workspace" \
+  "$OPENCLAW_IMAGE" node dist/index.js "$@"
